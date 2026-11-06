@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import hashlib
+import json
 import os
 import secrets
 import threading
@@ -203,6 +204,25 @@ async def session_status() -> dict:
         "logged_in": _session["access_token"] is not None,
         "expired": time.time() >= _session["expires_at"] if _session["access_token"] else None,
     }
+
+
+@mcp.tool()
+async def debug_token_claims() -> dict:
+    """Decode the session access token's JWT payload locally and return only
+    non-sensitive claims (iss, aud, exp, iat, nbf, scope). The raw token is
+    never returned, logged, or stored. Run login first."""
+    token = _session["access_token"]
+    if not token:
+        return {"error": "no session, call the login tool first"}
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+    except Exception:
+        return {"error": "access token is not a decodable JWT"}
+    safe = {k: claims.get(k) for k in ("iss", "aud", "exp", "iat", "nbf", "scp", "scope") if k in claims}
+    safe["expires_in_seconds"] = claims.get("exp", 0) - int(time.time()) if claims.get("exp") else None
+    return safe
 
 
 @mcp.tool()

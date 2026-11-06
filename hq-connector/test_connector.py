@@ -41,13 +41,24 @@ location.href='{redirect}?code=mock-auth-code&state={state}&login='+encodeURICom
 </form></body></html>"""
 
 
+def _fake_jwt() -> str:
+    import base64
+    header = base64.urlsafe_b64encode(b'{"alg":"RS256","typ":"JWT"}').rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(json.dumps({
+        "iss": "https://connexion-nonprod.example.com/tfp/tenant/b2c_1a_test/v2.0",
+        "aud": "test-client-id", "exp": 9999999999, "iat": 1,
+        "scp": "openid offline_access",
+    }).encode()).rstrip(b"=").decode()
+    return f"{header}.{payload}.fakesig"
+
+
 def _install_token_mock():
     real_client = httpx.AsyncClient
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path.endswith("/oauth2/v2.0/token"):
             return httpx.Response(200, json={
-                "access_token": "AT-SECRET", "refresh_token": "RT-SECRET",
+                "access_token": _fake_jwt(), "refresh_token": "RT-SECRET",
                 "token_type": "Bearer", "expires_in": 3600, "scope": "openid offline_access",
             })
         return httpx.Response(200, json={"path": request.url.path, "method": request.method})
@@ -78,8 +89,13 @@ async def _post_login_checks():
     httpx.AsyncClient = CapClient
 
     data = await srv.call_private_api(PRIVATE_PATH)
-    assert captured["auth"] == "Bearer AT-SECRET", captured
-    print("private call:", PRIVATE_PATH, "->", data, "| auth header:", captured["auth"])
+    assert captured["auth"].startswith("Bearer eyJ"), captured
+    print("private call:", PRIVATE_PATH, "->", data, "| auth header: Bearer <jwt>")
+
+    claims = await srv.debug_token_claims()
+    print("debug_token_claims:", claims)
+    assert claims.get("aud") == "test-client-id" and claims.get("iss", "").startswith("https://")
+    assert "fakesig" not in json.dumps(claims) and captured["auth"] not in json.dumps(claims)
 
     pub = await srv.get_mobile_configuration()
     print("public call ok:", pub)

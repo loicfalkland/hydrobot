@@ -11,6 +11,7 @@ Custom MCP connector for the Hydro-Quebec mobile backend API (endpoints discover
 | `login` | opens Azure AD B2C authorize page in the browser/webview, captures code on loopback redirect, exchanges it (PKCE + state) | interactive, user's own credentials |
 | `refresh_access_token` | refresh-token grant | session |
 | `logout` / `session_status` | clear / inspect in-memory session (no token values exposed) | — |
+| `debug_token_claims` | decode the session JWT locally; returns only non-sensitive claims (iss, aud, exp, iat, nbf, scope) — never the raw token | session |
 | `get_mobile_configuration` | `GET /mf/mobile/public/api/v4_0/configuration/json` | none (public) |
 | `get_public_device_info` | `GET /mf/mobile/public/api/v4_0/appareils/obtenir/appareil/{HQ_TOKEN}` | none (public) |
 | `get_notification_count_public` | `GET /mf/mobile/public/api/v4_0/notifications/count` | none (public) |
