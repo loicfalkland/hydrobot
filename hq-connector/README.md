@@ -82,6 +82,31 @@ response = await client.beta.conversations.start_async(
 Or attach the connector when creating an agent via `POST /v1/agents` /
 `client.beta.agents.create(..., tools=[{"type": "connector", "connector_id": "hq_mobile_api"}])`.
 
+## Testing
+
+```bash
+pip install -r requirements.txt
+python test_connector.py            # mocked, CI-safe: full PKCE login flow + call checks
+python test_connector.py --webview  # real embedded webview (pywebview) on a local mock IdP, then API call checks
+```
+
+Integration test on the REAL server with your own credentials (run on your machine):
+
+```bash
+pip install pywebview               # only for --webview
+export HQ_BASE_URL=https://<backend-host>
+export HQ_ISSUER=https://connexion-<env>.solutions.hydroquebec.com/tfp/<tenant>/b2c_1a_<policy>/v2.0
+export HQ_CLIENT_ID=<client-id from the public configuration JSON>
+python integration_test.py --webview   # real Hydro-Quebec login page in an embedded webview
+python integration_test.py             # system browser / printed URL fallback
+```
+
+Integration flow: public config → `login` (you type your own credentials in the real B2C
+webview) → `session_status` → read-only private GETs (`infoCompte`, `relations`, `factures`)
+reusing the session token → `refresh_access_token` → private call again → `logout` → verify
+refused. Only read-only GET endpoints are called; tokens stay in memory, never printed or
+persisted. Never share your password, tokens, or callback URLs.
+
 ## Notes
 
 - The identity provider is Azure AD B2C
