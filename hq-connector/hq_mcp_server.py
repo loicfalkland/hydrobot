@@ -5,6 +5,7 @@ import os
 import secrets
 import threading
 import time
+import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlencode, urlparse
@@ -37,12 +38,18 @@ def _pkce() -> tuple[str, str]:
 
 
 async def _get(path: str, params: dict | None = None, bearer: str | None = None) -> dict:
-    headers = {"Accept": "application/json"}
+    headers = {
+        "Accept": "*/*",
+        "Content-Type": "application/json",
+        "Accept-Language": os.environ.get("HQ_LANG", "fr-CA"),
+        "GUID_SESSION": str(uuid.uuid4()),
+    }
     if bearer:
         headers["Authorization"] = f"Bearer {bearer}"
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
         response = await client.get(f"{BASE_URL}{path}", params=params, headers=headers)
-        response.raise_for_status()
+        if response.status_code >= 400:
+            raise RuntimeError(f"HTTP {response.status_code} for {path}: {response.text[:300]}")
         return response.json()
 
 
@@ -150,7 +157,10 @@ async def login() -> dict:
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        webbrowser.open(auth_url)
+        opened = webbrowser.open(auth_url)
+        if not opened or os.environ.get("HQ_OPEN_BROWSER", "1") == "0":
+            print("Browser did not open automatically. Open this URL in your browser/webview to sign in:")
+            print(auth_url)
         deadline = time.time() + LOGIN_TIMEOUT_S
         while time.time() < deadline and "code" not in result and "error" not in result:
             await asyncio.sleep(0.5)

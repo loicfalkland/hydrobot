@@ -24,8 +24,14 @@ READ_ONLY_PRIVATE_PATHS = [
 
 async def main():
     print("[1] public: get_mobile_configuration")
-    config = await srv.get_mobile_configuration()
-    print("    ok, keys:", sorted(config.keys())[:8])
+    try:
+        config = await srv.get_mobile_configuration()
+        print("    ok, keys:", sorted(config.keys())[:8])
+    except Exception as exc:
+        print("    FAILED:", str(exc)[:300])
+        print("    hint: the backend may require the app headers (Accept: */*, GUID_SESSION) or a ?fichier= param;")
+        print("    try: curl -i '<HQ_BASE_URL>/mf/mobile/public/api/v4_0/configuration/json' on your machine to inspect the 400 body.")
+        return
 
     print("[2] public: list_known_endpoints")
     eps = await srv.list_known_endpoints()
